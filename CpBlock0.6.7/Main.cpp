@@ -237,7 +237,10 @@ private:
 	bool blockBar = true;
 	void put_it(int from, int to) {
 		int from_last = from;
+		set<int> passed1;
 		while (objs[from_last].data.child_id != -1) {
+			if (passed1.count(from_last))break;
+			passed1.insert(from_last);
 			from_last = objs[from_last].data.child_id;
 		}
 		if (objs[to].data.child_id != -1) {
@@ -279,6 +282,7 @@ private:
 	int doubleClickDialog = -1;
 
 	//
+	int last_cursor_has = -1;
 public:
 	project(const InitData& init)
 		: IScene{ init },
@@ -360,6 +364,8 @@ public:
 			menu_clicked = false;
 		}
 		//ブロックの削除処理
+
+		Print << cursor_has << (block_erase < objs.size()) << menu_opened << MouseL.up();
 		if (block_erase != -1 && block_erase < objs.size() && menu_opened && MouseL.up()) {
 			if (objs[block_erase].data.can_erase) {
 				int i = block_erase;
@@ -387,7 +393,7 @@ public:
 			m_can_move = false;
 			building = true;
 		}
-		else if (!Rect{ 0,0,300,Scene::Height() }.mouseOver() || !MouseL.pressed()) {
+		else if (!Rect{ 0,0,300,Scene::Height() }.mouseOver() && !MouseL.pressed()) {
 			block_erase = -1;
 		}
 		if (Rect{ 0,Scene::Height() - 50,50,50 }.leftClicked()) {
@@ -431,7 +437,6 @@ public:
 		if (MouseL.up() && putto != -1 && cursor_has != -1 && putto != cursor_has && objs[cursor_has].data.can_connect) {
 			put_it(cursor_has, putto);
 		}
-		cursor_has = -1;
 		for (int i = 0; i < objs.size(); i++) {
 			objs[i].update();
 			objs[order[i]].update();
@@ -440,10 +445,13 @@ public:
 				objs[order[i]].data.pressing = true;
 				objs[order[i]].data.has_pos = objs[order[i]].getPos() - Cursor::Pos();
 				if (m_can_move) {
-					cursor_has = i;
+					cursor_has = order[i];
 				}
 			}
-			else if (!MouseL.pressed()) objs[order[i]].data.pressing = false;
+			else if (!MouseL.pressed()) {
+				cursor_has = -1;
+				objs[order[i]].data.pressing = false;
+			}
 			//最も上のブロックのHover時処理
 			if (objs[order[i]].isHover() && cursor_hover == -1) {
 				cursor_hover = i;
@@ -472,22 +480,6 @@ public:
 				}
 			}
 		}
-		//Orderの整理
-		{
-			vector<pair<int, int>> orderAndId;
-			for (int i = 0; i < order.size(); i++) {
-				orderAndId.push_back(pair<int, int>{order[i], i});
-			}
-			sort(orderAndId.begin(), orderAndId.end());
-			int j = 0;
-			for (int i = 0; i < order.size(); i++) {
-				orderAndId[i].first = j;
-				j++;
-			}
-			for (int i = 0; i < order.size(); i++) {
-				order[orderAndId[i].second] = orderAndId[i].first;
-			}
-		}
 		for (int i = 0; i < objs.size(); i++) {
 			if (objs[order[i]].data.pressing) {
 				auto c = order[i];
@@ -513,33 +505,16 @@ public:
 				}
 			}
 		}
+		if (cursor_has != -1) last_cursor_has = cursor_has;
 		auto& gui = getData().gui;
-		if (doubleClickDialog != -1) {
-			gui.windowBegin(U"Block config");
-			switch (objs[doubleClickDialog].data.type) {
-			case blocktype::print:
-				switch (gui.tab(U"configs", { U"出力" })) {
-				case 0:
-					switch (gui.tab(U"type", { U"文字列から",U"変数から" })) {
-					case 0:
-						gui.label(U"出力する文字");
-						objs[doubleClickDialog].data.args[0] = gui.simpleTextBox(U"out_str", 600).text;
-						break;
-					case 1:
-						gui.label(U"出力する変数");
-						gui.tab(U"variable", {});
-						break;
-					}
-				}
-				break;
-			default:
-				break;
-			}
-			if (gui.button(U"閉じる")) {
-				doubleClickDialog = -1;
-			}
-			gui.windowEnd();
+		gui.windowBegin(U"Debug", SasaGUI::WindowFlag::Debug | SasaGUI::WindowFlag::AutoResize);
+		gui.label(U"ID:{}"_fmt(last_cursor_has));
+		if (last_cursor_has != -1) {
+			gui.label(U"Parent:{}"_fmt(objs[last_cursor_has].data.parent_id));
+			gui.label(U"Child:{}"_fmt(objs[last_cursor_has].data.child_id));
+			gui.label(U"Pos:{}"_fmt(objs[last_cursor_has].getPos()));
 		}
+		gui.windowEnd();
 	}
 };
 
